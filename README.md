@@ -38,6 +38,15 @@ wise-help-assistant/
 - RSM 8430 course API key (your student number)
 - `openai` Python package: `pip install openai`
 
+### Generate neural embeddings (one-time setup)
+
+```bash
+export LLM_API_KEY='your-student-number'
+python3 data/embed_kb.py
+# Generates data/embeddings.json (~6 MB, 768-dim vectors)
+# Only needed once, or after updating knowledge_base.json
+```
+
 ### Run the agent
 
 ```bash
@@ -51,15 +60,6 @@ python3 server.py
 ```
 
 Then open **http://localhost:8000** in your browser.
-
-### Generate neural embeddings (one-time setup)
-
-```bash
-export LLM_API_KEY='your-student-number'
-python3 data/embed_kb.py
-# Generates data/embeddings.json (~6 MB, 768-dim vectors)
-# Only needed once, or after updating knowledge_base.json
-```
 
 ---
 
