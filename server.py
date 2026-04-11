@@ -23,8 +23,8 @@ import socketserver
 import sys
 from pathlib import Path
 
-# Import local modules
-sys.path.insert(0, str(Path(__file__).parent))
+# Import local modules (they're in the parent directory)
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from retriever import Retriever
 import database as db
 

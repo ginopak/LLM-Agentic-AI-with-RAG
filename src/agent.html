@@ -539,9 +539,20 @@ function grd(t) {
   return null;
 }
 
+// ── TRANSFER CANCEL (server mock DB) ───────────────────────────────────────
+function transferCanCancel(status) {
+  var s = (status || "").trim();
+  // These can be cancelled in-app in our mock; Sent/Completed/Cancelled cannot
+  return ["Awaiting Funds", "In Transit", "Funds converted", "Delayed"].indexOf(s) >= 0;
+}
+
 // ── INTENT CLASSIFIER ──
 function itn(t) {
   var l = t.toLowerCase();
+
+  // ── CANCEL TRANSFER (before track — avoids "cancel" matching track) ─────
+  if (/\b(cancel|void|stop)\b.*\b(transfer|transaction|payment)\b|\b(transfer|transaction)\b.*\b(cancel|void)\b/i.test(t)) return "cancel";
+  if (/\b(want|need|can i|how do i|help me)\b.*\b(cancel|void)\b.*\b(transfer|transaction)\b/i.test(t)) return "cancel";
 
   // ── TRACK TRANSFER ────────────────────────────────────────────────────
   if (/\b(track|where is|status of|check.*transfer|transfer.*status|my transfer|look up.*transfer|find.*transfer|TW-?\d)/i.test(t)) return "track";
@@ -639,6 +650,19 @@ async function fTrack(ref, origQuery) {
       followUp = "<div style='margin-top:10px;font-size:12px;color:var(--mu)'>This transfer was cancelled. Would you like to <strong>create a support ticket</strong> or check fees to send again?</div>";
     }
 
+    // Cancel option (same behaviour as before — depends on status)
+    var cancelBlock = "";
+    if (transferCanCancel(d.status)) {
+      cancelBlock = "<div style='margin-top:12px;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--sf);font-size:12px;line-height:1.5'>"
+        +"<strong>Cancel this transfer?</strong> While the status is <em>"+esc(d.status)+"</em>, you can cancel it here. "
+        +"Reply with <strong>cancel transfer "+esc(d.transfer_id)+"</strong> and confirm with <strong>yes</strong> when asked.</div>";
+    } else if (d.status !== "Cancelled") {
+      cancelBlock = "<div style='margin-top:12px;font-size:12px;color:var(--mu)'>"
+        +"<strong>Cancellation:</strong> Transfers with status <em>"+esc(d.status)+"</em> usually cannot be cancelled in-app. "
+        +"See <a href='https://wise.com/help/articles/2932703/can-i-cancel-my-transfer' target='_blank'>Can I cancel my transfer?</a> "
+        +"or contact <a href='https://wise.com/help/contact' target='_blank'>Wise Support</a>.</div>";
+    }
+
     // If original query mentions a problem, offer ticket creation
     var problemHint = "";
     if (origQuery && /not received|didn't arrive|hasn't received|missing|problem|issue|stuck|delayed|wrong/i.test(origQuery)) {
@@ -649,12 +673,90 @@ async function fTrack(ref, origQuery) {
     return {h:"<p>Transfer <strong>"+esc(d.transfer_id)+"</strong>:</p>"
       +"<div class='ac'><div class='at'>Transfer Details</div>"+rows
       +"<div class='as "+sc+"'>&#9679; "+esc(d.status)+"</div></div>"
-      +tip+problemHint+followUp
+      +tip+problemHint+followUp+cancelBlock
       +"<p style='margin-top:8px;font-size:11px;color:var(--mu)'>Real-time tracking: <a href='https://wise.com' target='_blank'>wise.com</a> &#8594; Transactions</p>",
       it:"action"};
   } catch(e) {
     return {h:"<p>&#9888; Error looking up transfer: "+esc(e.message)+"</p>", it:"action"};
   }
+}
+
+function _normTwRef(raw) {
+  if (!raw) return null;
+  var s = String(raw).trim().toUpperCase().replace(/\s/g, "");
+  if (!s) return null;
+  if (!s.startsWith("TW-")) s = "TW-" + s.replace(/^TW/i, "");
+  return s;
+}
+
+async function aCancel(t) {
+  var rf = t.match(/\bTW[-]?[A-Z0-9]{4,8}\b/i);
+  var ref = rf ? _normTwRef(rf[0]) : null;
+
+  if (PA === "cancel_confirm") {
+    var tid = DATA.pending_tid || "";
+    var low = t.trim().toLowerCase();
+    if (/^(y|yes|confirm|ok|proceed|cancel it)\b/i.test(low)) {
+      try {
+        var upd = await callAction("transfer.update_status", {
+          transfer_id: tid,
+          status: "Cancelled",
+          note: "Cancelled via Wise Help Assistant (mock)."
+        });
+        PA = null; STEP = 0; DATA = {}; updAx(); STATS.act++; updSt();
+        if (upd.error) throw new Error(typeof upd.error === "string" ? upd.error : JSON.stringify(upd.error));
+        return {h:"<p>&#10003; Transfer <strong>"+esc(tid)+"</strong> has been <strong>cancelled</strong>.</p>"
+          +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>In the real Wise app you would see this update under Transactions immediately.</p>",
+          it:"action"};
+      } catch (e) {
+        PA = null; STEP = 0; DATA = {}; updAx();
+        return {h:"<p>&#9888; Could not cancel: "+esc(e.message)+"</p>", it:"action"};
+      }
+    }
+    if (/^(n|no|nope|keep|abort|stop)\b/i.test(low)) {
+      var keepId = tid;
+      PA = null; STEP = 0; DATA = {}; updAx();
+      return {h:"<p>Okay — transfer <strong>"+esc(keepId)+"</strong> was <strong>not</strong> cancelled.</p>", it:"action"};
+    }
+    return {h:"<p>Please reply <strong>yes</strong> to cancel or <strong>no</strong> to keep the transfer.</p>", it:"action"};
+  }
+
+  if (PA === "cancel_flow" && STEP === 1) {
+    var r2 = t.match(/\bTW[-]?[A-Z0-9]{4,8}\b/i);
+    ref = r2 ? _normTwRef(r2[0]) : _normTwRef(t);
+    if (!ref) {
+      return {h:"<p>Please enter a valid reference like <strong>TW-001234</strong>.</p>", it:"action"};
+    }
+    PA = null; STEP = 0; DATA = {}; updAx();
+    return await aCancel("cancel transfer " + ref);
+  }
+
+  if (!PA) {
+    if (!ref) {
+      PA = "cancel_flow"; STEP = 1; DATA = {}; updAx();
+      return {h:"<p>I can cancel a transfer in our demo database. Please send your <strong>transfer reference</strong> (e.g. <strong>TW-001237</strong>).</p>"
+        +"<p style='font-size:12px;color:var(--mu);margin-top:6px'>Only transfers that are still processing can be cancelled here.</p>", it:"action"};
+    }
+    try {
+      var d = await callAction("transfer.lookup", {transfer_id: ref});
+      if (!d.found) {
+        return {h:"<p>No transfer found for <strong>"+esc(ref)+"</strong>. Check the ID and try again.</p>", it:"action"};
+      }
+      if (!transferCanCancel(d.status)) {
+        return {h:"<p>Transfer <strong>"+esc(d.transfer_id)+"</strong> is <strong>"+esc(d.status)+"</strong>, so it <strong>cannot</strong> be cancelled through this demo.</p>"
+          +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>Contact <a href='https://wise.com/help/contact' target='_blank'>Wise Support</a> if you need help.</p>",
+          it:"action"};
+      }
+      PA = "cancel_confirm"; STEP = 1; DATA = {pending_tid: ref}; updAx();
+      return {h:"<p>Transfer <strong>"+esc(ref)+"</strong> is <strong>"+esc(d.status)+"</strong>. "
+        +"Do you want to <strong>cancel</strong> it?</p><p style='margin-top:8px'>Reply <strong>yes</strong> to confirm or <strong>no</strong> to keep it.</p>",
+        it:"action"};
+    } catch (e) {
+      return {h:"<p>&#9888; "+esc(e.message)+"</p>", it:"action"};
+    }
+  }
+
+  return {h:"<p>Something went wrong. Try <strong>cancel transfer TW-001234</strong>.</p>", it:"action"};
 }
 
 async function aTicket(t) {
@@ -944,6 +1046,7 @@ async function _freezeStep2(t) {
 async function getResp(q) {
   // 1. If mid-action, route directly — skip guardrails for collected inputs
   if (PA) {
+    if (PA==="cancel_confirm" || PA==="cancel_flow") return await aCancel(q);
     if (PA==="track")  return await aTrack(q);
     if (PA==="ticket") return await aTicket(q);
     if (PA==="conv")   return await aConv(q);
@@ -959,6 +1062,7 @@ async function getResp(q) {
   var it = itn(q);
   logI(it);
   if (it==="hi") return aHi();
+  if (it==="cancel") return await aCancel(q);
   if (it==="track") return await aTrack(q);
   if (it==="ticket") return await aTicket(q);
   if (it==="conv") return await aConv(q);
