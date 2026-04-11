@@ -734,7 +734,7 @@ async function aCancel(t) {
   if (!PA) {
     if (!ref) {
       PA = "cancel_flow"; STEP = 1; DATA = {}; updAx();
-      return {h:"<p>I can cancel a transfer in our demo database. Please send your <strong>transfer reference</strong> (e.g. <strong>TW-001237</strong>).</p>"
+      return {h:"<p>I can cancel a transfer in our demo database. Please send your <strong>transfer reference</strong> (numeric format, e.g. <strong>TW-001234</strong>).</p>"
         +"<p style='font-size:12px;color:var(--mu);margin-top:6px'>Only transfers that are still processing can be cancelled here.</p>", it:"action"};
     }
     try {
