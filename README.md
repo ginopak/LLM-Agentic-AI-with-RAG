@@ -7,26 +7,55 @@ A conversational RAG (Retrieval-Augmented Generation) agent built on Wise's publ
 ## Repository Structure
 
 ```
-wise-help-assistant/
+LLM-Agentic-AI-with-RAG/
 ├── src/
-│   └── agent.html              # Self-contained agent UI (835 KB)
+│   ├── agent.html              # Agent UI (RAG + actions; talks to /api/chat and /api/action)
+│   └── knowledge_base.js       # Optional / build artifact for KB embedding in UI
 ├── data/
-│   ├── knowledge_base.json     # 402 articles scraped from wise.com/help (1.2 MB)
-│   ├── embeddings.json         # Pre-computed vector embeddings (run embed_kb.py to generate)
-│   ├── mock_db.json            # Simulated database — 25 users, 60 transfers, 20 tickets, 20 cards
-│   ├── embed_kb.py             # Generates neural embeddings via RSM 8430 A2 endpoint
-│   └── scraper.py              # Web scraper (BeautifulSoup) used to build the KB
-├── server.py                   # Local proxy server — RAG pipeline + database actions
-├── retriever.py                # Vector retrieval module (neural + TF-IDF fallback)
-├── database.py                 # Mock database layer — 16 CRUD actions
-├── docs/
-│   └── evaluation_report.docx # RAG optimization report + 15 test case results
+│   ├── knowledge_base.json     # Articles from wise.com/help
+│   ├── embeddings.json         # Pre-computed vectors (from embed_kb.py)
+│   ├── mock_db.json            # Simulated DB (users, transfers, tickets, cards)
+│   ├── tickets.json            # Ticket store (runtime updates)
+│   ├── embed_kb.py             # Neural embeddings via RSM 8430 embedding API
+│   └── scraper.py              # KB scraper (BeautifulSoup)
+├── deploy/
+│   ├── Caddyfile               # Reverse proxy + Basic Auth (docker compose)
+│   ├── Caddyfile.prod          # Caddy for single-container public image
+│   ├── entrypoint.sh           # Starts Python + Caddy (Dockerfile.web)
+│   ├── env.example             # Copy to .env for local Docker (do not commit secrets)
+│   └── DEPLOY.txt              # Extra deploy notes
 ├── tests/
-│   └── test_cases.md           # Manual test suite (15 cases, 100% pass rate)
-├── build.py                    # Build script (injects KB into agent template)
+│   └── test_cases.md           # Manual test suite
+├── docs/
+│   └── rag_optimization_report.docx
+├── server.py                   # HTTP server — RAG (/api/chat) + actions (/api/action)
+├── retriever.py                # Vector retrieval (neural + TF-IDF fallback)
+├── database.py                 # Mock DB layer
+├── build.py                    # Build helper (KB → template)
+├── Dockerfile                  # Python app only (used by docker-compose)
+├── Dockerfile.web              # Python + Caddy — use for Render / public HTTPS
+├── docker-compose.yml          # Local stack: app + Caddy (password-protected)
+├── render.yaml                 # Example Render blueprint
 ├── README.md
-└── .gitignore
+├── .gitignore                  # Ignores .env, __pycache__, etc.
+└── .dockerignore
 ```
+
+**Secrets:** Keep API keys and site passwords in a local **`.env`** file (see `deploy/env.example`). `.env` is gitignored — **never commit it** to a public repo.
+
+---
+
+## How to run (localhost vs public)
+
+The app is meant to run on your machine first. **Docker and cloud deploy are optional.**
+
+| What you want | Where it runs | How |
+|-----------------|---------------|-----|
+| **Everyday dev — no install beyond Python** | **http://localhost:8000** | Set `LLM_API_KEY`, run `python3 server.py` (see [Quick Start](#quick-start)). |
+| **Same as production auth, still on your PC** | **http://localhost:8080** (default) | Docker Compose + `.env` (see [Password-protected local run](#password-protected-local-run-docker-compose)). |
+| **Public HTTPS URL** | Your host (e.g. Render) | `Dockerfile.web` + env vars (see [Public URL](#public-url-eg-render)). |
+
+You do **not** need Docker or a deployed URL to use the assistant — **`localhost:8000` is enough** for full RAG + database actions as long as `LLM_API_KEY` is set.
 
 ---
 
@@ -34,32 +63,87 @@ wise-help-assistant/
 
 ### Prerequisites
 
-- Python 3.8+
-- RSM 8430 course API key (your student number)
-- `openai` Python package: `pip install openai`
+- **Python 3.10+** (3.12 recommended)
+- **RSM 8430** course API key (student number) for the LLM and embedding endpoints
+- **`openai`** package only if you (re)generate embeddings: `pip install openai`
 
-### Generate neural embeddings (one-time setup)
+Running **`server.py`** uses the **standard library** only (plus `retriever.py` / `database.py`).
+
+### Generate neural embeddings (optional / one-time)
+
+Only needed if you change `knowledge_base.json` or need to refresh vectors:
 
 ```bash
 export LLM_API_KEY='your-student-number'
+pip install openai
 python3 data/embed_kb.py
 # Generates data/embeddings.json (~6 MB, 768-dim vectors)
 # Only needed once, or after updating knowledge_base.json
 ```
 
-### Run the agent
+### Run the agent on localhost (no Docker)
+
+This is the **main way to run the project locally**: plain Python, no containers, no password screen unless you configure `SITE_API_TOKEN` yourself.
 
 ```bash
-# Mac / Linux
 export LLM_API_KEY='your-student-number'
-python3 server.py
-
-# Windows
-set LLM_API_KEY=your-student-number
 python3 server.py
 ```
 
-Then open **http://localhost:8000** in your browser.
+Open **http://localhost:8000** (or **http://127.0.0.1:8000**). The server binds to all interfaces (`0.0.0.0`) if you need another device on your LAN; by default use localhost in the browser.
+
+Optional: set `PORT=9000` (or any free port) if 8000 is busy — the startup log prints the URL.
+
+---
+
+## Password-protected local run (Docker Compose)
+
+Use this to mirror the “site login + API” behaviour on your machine.
+
+1. Copy `deploy/env.example` to **`.env`** in the project root and fill in:
+   - `LLM_API_KEY`, `BASIC_AUTH_USER`, `BASIC_AUTH_HASH` (from `caddy hash-password`), `SITE_API_TOKEN` (plain secret; simplest is the same password you hashed for Basic Auth).
+2. Start Docker Desktop, then:
+
+```bash
+docker compose up --build
+```
+
+3. Open **http://localhost:8080** (or the host port in `PUBLIC_PORT`). Complete the browser **Basic Auth** prompt; the UI loads and `/api` uses a **Bearer** token injected by the server (`SITE_API_TOKEN`).
+
+---
+
+## Public URL (e.g. Render)
+
+Deploy the **`Dockerfile.web`** image: it runs **Python + Caddy** (HTTPS on the host, password gate, same Bearer pattern as local Compose).
+
+### One-time setup
+
+1. **Do not commit `.env`.** Put secrets only in Render’s **Environment** tab (or your host’s secret store).
+2. Generate a **bcrypt hash** for your chosen site password:
+
+   ```bash
+   caddy hash-password
+   ```
+
+3. Set these variables on the host (values match your chosen password / hash):
+
+   | Variable | Purpose |
+   |----------|---------|
+   | `LLM_API_KEY` | Course LLM key |
+   | `SITE_API_TOKEN` | Plain text secret for `/api` Bearer auth (easiest: same as Basic Auth password) |
+   | `BASIC_AUTH_USER` | Username for the browser login box (e.g. `admin`) |
+   | `BASIC_AUTH_HASH` | Full line printed by `caddy hash-password` (starts with `$2a$` / `$2y$`) |
+
+### Render (typical flow)
+
+1. Push this repo to GitHub (without `.env`).
+2. [Render](https://render.com) → **New** → **Web Service** → connect the repo.
+3. **Runtime:** Docker · **Dockerfile path:** `Dockerfile.web`.
+4. Add the environment variables above; set **Health Check Path** to **`/health`**.
+5. Deploy; open the **`https://…onrender.com`** URL.
+6. Sign in with **Basic Auth**; use the app as usual.
+
+More detail: **`deploy/DEPLOY.txt`**.
 
 ---
 
@@ -255,7 +339,7 @@ python3 embed_kb.py
 ## Evaluation
 
 See `tests/test_cases.md` — 15 test cases across 5 categories, **100% pass rate**.
-See `docs/evaluation_report.docx` — full RAG optimization report with 7 experiments.
+See `docs/rag_optimization_report.docx` — RAG optimization write-up.
 
 | Category | Cases | Pass Rate |
 |---|---|---|
