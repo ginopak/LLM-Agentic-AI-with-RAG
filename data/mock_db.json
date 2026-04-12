@@ -1588,7 +1588,7 @@
       "last_four": "2222",
       "status": "Frozen",
       "card_type": "Physical",
-      "frozen_at": "2026-04-09T21:37:21.069068Z",
+      "frozen_at": null,
       "replacement_reason": null,
       "replacement_address": null,
       "replacement_requested_at": null,
