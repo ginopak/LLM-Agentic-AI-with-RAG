@@ -12,9 +12,8 @@ COPY src ./src
 COPY data ./data
 COPY deploy/Caddyfile.prod /etc/caddy/Caddyfile
 COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Use `sh` explicitly so deploy works even if +x or CRLF line endings break direct execution (exit 126).
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
