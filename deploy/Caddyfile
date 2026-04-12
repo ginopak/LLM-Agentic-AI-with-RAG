@@ -1,0 +1,15 @@
+# Basic Auth protects the HTML shell. /api/* is proxied without Basic Auth so fetch() can send
+# Authorization: Bearer (see SITE_API_TOKEN in server.py + injected window.__SITE_API_TOKEN).
+
+:80 {
+	@api path /api/*
+	handle @api {
+		reverse_proxy app:8000
+	}
+	handle {
+		basic_auth {
+			{$BASIC_AUTH_USER} "{$BASIC_AUTH_HASH}"
+		}
+		reverse_proxy app:8000
+	}
+}

@@ -1,0 +1,49 @@
+Public deploy (password-protected URL)
+======================================
+
+You already have local Docker Compose. For a public HTTPS URL, use the single-image
+build (Caddy + Python) in Dockerfile.web.
+
+1) Required secrets (set in the hosting dashboard — never commit them)
+
+   LLM_API_KEY       — course LLM key
+   SITE_API_TOKEN    — long random string; same idea as local .env (Bearer for /api)
+   BASIC_AUTH_USER   — e.g. admin
+   BASIC_AUTH_HASH   — full bcrypt line from: caddy hash-password
+                       (wrap in single quotes in env UIs if $ causes issues)
+
+2) Generate BASIC_AUTH_HASH (same as local)
+
+   brew install caddy   # or Docker
+   caddy hash-password
+
+   Use the printed $2a$... line. Pick a password you remember; set SITE_API_TOKEN to
+   that same plain password (simplest), or use openssl rand -hex 24 for SITE_API_TOKEN
+   and keep Basic password separate (then Bearer must match SITE_API_TOKEN only).
+
+3) Render (example)
+
+   - New → Blueprint → connect this repo, or New → Web Service → Docker
+   - Dockerfile path: Dockerfile.web
+   - Health check path: /health
+   - Add env vars from (1)
+   - Deploy; open the https://...onrender.com URL
+   - Log in with Basic Auth; chat uses Bearer from injected token
+
+4) Fly.io (sketch)
+
+   fly launch --dockerfile Dockerfile.web
+   fly secrets set LLM_API_KEY=... SITE_API_TOKEN=... BASIC_AUTH_USER=... BASIC_AUTH_HASH='...'
+   fly deploy
+
+5) Railway
+
+   Connect repo; set Dockerfile to Dockerfile.web; add the same env vars.
+
+Notes
+-----
+
+- /health returns plain "ok" without Basic Auth so platforms can health-check.
+- The app listens on internal port 8000; Caddy listens on $PORT from the host.
+- If the UI does not call /api/chat on your domain, ensure you deployed agent.html
+  served by server.py (injects __USE_SERVER). Do not open agent.html as a raw file.

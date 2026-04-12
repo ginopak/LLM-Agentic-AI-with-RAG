@@ -1,0 +1,12 @@
+.git
+.gitignore
+.cursor
+__pycache__
+*.pyc
+*.pyo
+.env
+.venv
+venv
+*.md
+tests
+deploy/env.example

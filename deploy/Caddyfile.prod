@@ -1,0 +1,18 @@
+# Single-container image: Caddy + Python on localhost:8000. Listen on $PORT (set by the host, e.g. Render/Fly).
+
+:{$PORT} {
+	@health path /health
+	handle @health {
+		respond "ok" 200
+	}
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle {
+		basic_auth {
+			{$BASIC_AUTH_USER} "{$BASIC_AUTH_HASH}"
+		}
+		reverse_proxy 127.0.0.1:8000
+	}
+}

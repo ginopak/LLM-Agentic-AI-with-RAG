@@ -223,7 +223,16 @@ const EMBS = {"vocab":["ll","do","be","my","by","need","as","re","send","up","ba
 
 // ── STATE ──
 var API_KEY = "";
-var USE_SERVER = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+var USE_SERVER = (typeof window.__USE_SERVER !== "undefined")
+  ? !!window.__USE_SERVER
+  : (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+function serverAuthHeaders(h) {
+  h = h || {};
+  if (typeof window.__SITE_API_TOKEN === "string" && window.__SITE_API_TOKEN.length) {
+    h["Authorization"] = "Bearer " + window.__SITE_API_TOKEN;
+  }
+  return h;
+}
 var PA = null, STEP = 0, DATA = {};
 var STATS = {kb:0,act:0,grd:0,oos:0};
 var HIST = [];
@@ -336,7 +345,7 @@ async function callClaude(query) {
   if (USE_SERVER) {
     // ── Server mode: server.py handles retrieval + Qwen3 call ──
     endpoint = "/api/chat";
-    headers  = {"Content-Type": "application/json"};
+    headers  = serverAuthHeaders({"Content-Type": "application/json"});
     body     = JSON.stringify({
       model: "qwen3-30b-a3b-fp8",
       max_tokens: 1024,
@@ -356,7 +365,9 @@ async function callClaude(query) {
     });
   }
 
-  var r = await fetch(endpoint, {method: "POST", headers: headers, body: body});
+  var fetchOpts = {method: "POST", headers: headers, body: body};
+  if (USE_SERVER) fetchOpts.credentials = "include";
+  var r = await fetch(endpoint, fetchOpts);
   var d = await r.json();
 
   if (d.error) throw new Error(typeof d.error === "string" ? d.error : (d.error.message || JSON.stringify(d.error)));
@@ -380,8 +391,9 @@ async function callClaude(query) {
 async function callAction(action, params) {
   var r = await fetch("/api/action", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({action: action, params: params || {}})
+    headers: serverAuthHeaders({"Content-Type": "application/json"}),
+    body: JSON.stringify({action: action, params: params || {}}),
+    credentials: "include"
   });
   var d = await r.json();
   if (d.error) throw new Error(typeof d.error === "string" ? d.error : (d.error.message || JSON.stringify(d.error)));

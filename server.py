@@ -16,24 +16,29 @@ Endpoints:
 import http.server
 import json
 import os
+import secrets
 import ssl
 import urllib.request
 import urllib.error
 import socketserver
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Import local modules (they're in the parent directory)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from retriever import Retriever
 import database as db
 
-PORT            = 8000
+PORT            = int(os.environ.get("PORT", "8000"))
 LLM_API_KEY     = os.environ.get("LLM_API_KEY", "")
 LLM_API_URL     = os.environ.get("LLM_API_URL", "https://rsm-8430-finalproject.bjlkeng.io/v1/chat/completions")
 LLM_MODEL       = os.environ.get("LLM_MODEL", "qwen3-30b-a3b-fp8")
 LLM_HTTP_TIMEOUT = int(os.environ.get("LLM_HTTP_TIMEOUT", "120"))
 LLM_ENABLE_THINKING = os.environ.get("LLM_ENABLE_THINKING", "1").strip().lower() not in ("0","false","no")
+
+# Optional: Bearer token for /api/* when a reverse proxy cannot pass HTTP Basic Auth to fetch() (e.g. Docker + Caddy).
+SITE_API_TOKEN = os.environ.get("SITE_API_TOKEN", "").strip()
 
 BASE_DIR  = Path(__file__).parent
 HTML_FILE = BASE_DIR / "src" / "agent.html"
@@ -347,9 +352,38 @@ class WiseAgentHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            self.path = "/agent.html"
+        path = urlparse(self.path).path
+        if path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"ok")
+            return
+        if path in ("/", "/index.html", "/agent.html"):
+            self._serve_agent_html()
+            return
         super().do_GET()
+
+    def _serve_agent_html(self):
+        raw = HTML_FILE.read_bytes()
+        parts = [b"<script>window.__USE_SERVER=1;"]
+        if SITE_API_TOKEN:
+            parts.append(
+                b"window.__SITE_API_TOKEN="
+                + json.dumps(SITE_API_TOKEN).encode("utf-8")
+                + b";"
+            )
+        parts.append(b"</script>")
+        inj = b"".join(parts)
+        if b"<head>" in raw:
+            raw = raw.replace(b"<head>", b"<head>" + inj, 1)
+        else:
+            raw = inj + raw
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
 
     def do_POST(self):
         if self.path == "/api/chat":
@@ -358,6 +392,18 @@ class WiseAgentHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_action()
         else:
             self.send_error(404)
+
+    def _api_token_ok(self) -> bool:
+        if not SITE_API_TOKEN:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if len(auth) < 7 or auth[:7].lower() != "bearer ":
+            return False
+        got = auth[7:].strip()
+        return secrets.compare_digest(got, SITE_API_TOKEN)
+
+    def _reject_api_auth(self):
+        self._send_json({"error": {"message": "Unauthorized"}}, 401)
 
     def _read_payload(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
@@ -374,6 +420,9 @@ class WiseAgentHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_chat(self):
         try:
+            if not self._api_token_ok():
+                self._reject_api_auth()
+                return
             payload = self._read_payload()
             if not LLM_API_KEY:
                 self._send_json({"error": {"message": "LLM_API_KEY not set."}}, 500)
@@ -390,6 +439,9 @@ class WiseAgentHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_action(self):
         try:
+            if not self._api_token_ok():
+                self._reject_api_auth()
+                return
             payload  = self._read_payload()
             result   = handle_action(payload)
             self._send_json(result)
@@ -404,6 +456,9 @@ def main():
         print("  Set with: export LLM_API_KEY='your-student-number'")
     else:
         print(f"LLM API key loaded (...{LLM_API_KEY[-4:]})")
+
+    if SITE_API_TOKEN:
+        print("SITE_API_TOKEN set — /api/* requires Authorization: Bearer <token> (injected into agent.html).")
 
     if not HTML_FILE.exists():
         print(f"Error: Cannot find {HTML_FILE}")

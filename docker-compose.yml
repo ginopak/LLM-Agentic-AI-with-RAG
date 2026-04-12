@@ -1,0 +1,30 @@
+# Public URL + HTTP Basic Auth (Caddy) in front of the Python server.
+# Copy deploy/env.example to .env, set LLM_API_KEY and BASIC_AUTH_* , then:
+#   docker compose up --build
+
+services:
+  app:
+    build: .
+    expose:
+      - "8000"
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY}
+      SITE_API_TOKEN: ${SITE_API_TOKEN?}
+      EMB_API_KEY: ${EMB_API_KEY:-}
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_HTTP_TIMEOUT: ${LLM_HTTP_TIMEOUT:-120}
+      LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-1}
+      PORT: "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "${PUBLIC_PORT:-8080}:80"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-admin}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH?}
+    depends_on:
+      - app
