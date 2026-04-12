@@ -2,6 +2,8 @@
 
 A conversational RAG (Retrieval-Augmented Generation) agent built on Wise's public help centre. Combines vector search over 402 real articles with a Qwen3-30B language model to answer questions, look up transfers, create support tickets, and manage cards — all backed by a persistent mock database.
 
+**Demo video:** A live walkthrough is in the repo root as **`Team 7 - Wise Agent Live Demo.mov`** (stored with [Git LFS](https://git-lfs.github.com/); after cloning, run `git lfs install` and `git lfs pull` if the file appears as a tiny pointer).
+
 ---
 
 ## Repository Structure
@@ -36,6 +38,7 @@ LLM-Agentic-AI-with-RAG/
 ├── Dockerfile.web              # Python + Caddy — use for Render / public HTTPS
 ├── docker-compose.yml          # Local stack: app + Caddy (password-protected)
 ├── render.yaml                 # Example Render blueprint
+├── Team 7 - Wise Agent Live Demo.mov   # Live demo recording (Git LFS)
 ├── README.md
 ├── .gitignore                  # Ignores .env, __pycache__, etc.
 └── .dockerignore
