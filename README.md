@@ -341,7 +341,7 @@ python3 embed_kb.py
 
 ## Evaluation
 
-See `tests/test_cases.md` — 15 test cases across 5 categories, **100% pass rate**.
+See `tests/test_cases.md` — 15 proposed test cases across 5 categories, **100% pass rate**.
 See `docs/rag_optimization_report.docx` — RAG optimization write-up.
 
 | Category | Cases | Pass Rate |
