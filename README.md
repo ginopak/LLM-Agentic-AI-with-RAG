@@ -119,6 +119,8 @@ docker compose up --build
 
 Deploy **`Dockerfile.web`** (Python + Caddy, HTTPS, password gate).
 
+On many free tiers the service **spins down after idle time**, so the first load after a break can be slow and the URL is only as stable as your host and plan.
+
 | Variable | Purpose |
 |----------|---------|
 | `LLM_API_KEY` | Course LLM key |
