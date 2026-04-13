@@ -14,12 +14,12 @@ LLM-Agentic-AI-with-RAG/
 │   ├── agent.html              # Agent UI (RAG + actions; talks to /api/chat and /api/action)
 │   └── knowledge_base.js       # Optional / build artifact for KB embedding in UI
 ├── data/
-│   ├── knowledge_base.json     # Articles from wise.com/help
-│   ├── embeddings.json         # Pre-computed vectors (from embed_kb.py)
+│   ├── knowledge_base.json     # 402 articles from wise.com/help
+│   ├── embeddings.json         # Pre-computed neural vectors (from embed_kb.py)
 │   ├── mock_db.json            # Simulated DB (users, transfers, tickets, cards)
-│   ├── tickets.json            # Ticket store (runtime updates)
-│   ├── embed_kb.py             # Neural embeddings via RSM 8430 embedding API
-│   └── scraper.py              # KB scraper (BeautifulSoup)
+│   ├── embed_kb.py             # Neural embeddings via RSM 8430 A2 endpoint
+│   ├── scraper.py              # KB scraper (BeautifulSoup)
+│   └── eval_retrieval.py       # RAG retrieval accuracy evaluation script (25 test cases)
 ├── deploy/
 │   ├── Caddyfile               # Reverse proxy + Basic Auth (docker compose)
 │   ├── Caddyfile.prod          # Caddy for single-container public image
@@ -27,12 +27,13 @@ LLM-Agentic-AI-with-RAG/
 │   ├── env.example             # Copy to .env for local Docker (do not commit secrets)
 │   └── DEPLOY.txt              # Extra deploy notes
 ├── tests/
-│   └── test_cases.md           # Manual test suite
+│   └── test_cases.md           # 58 manual test cases — 95% pass rate
 ├── docs/
-│   └── rag_optimization_report.docx
+│   ├── rag_optimization_report.docx    # 7-experiment RAG optimization report
+│   └── retrieval_accuracy_report.docx  # Neural embedding retrieval evaluation
 ├── server.py                   # HTTP server — RAG (/api/chat) + actions (/api/action)
-├── retriever.py                # Vector retrieval (neural + TF-IDF fallback)
-├── database.py                 # Mock DB layer
+├── retriever.py                # Vector retrieval (neural 768-dim + TF-IDF fallback)
+├── database.py                 # Mock DB layer (16 actions)
 ├── build.py                    # Build helper (KB → template)
 ├── Dockerfile                  # Python app only (used by docker-compose)
 ├── Dockerfile.web              # Python + Caddy — use for Render / public HTTPS
@@ -40,7 +41,7 @@ LLM-Agentic-AI-with-RAG/
 ├── render.yaml                 # Example Render blueprint
 ├── Team 7 - Wise Agent Live Demo.mov   # Live demo recording (Git LFS)
 ├── README.md
-├── .gitignore                  # Ignores .env, __pycache__, etc.
+├── .gitignore
 └── .dockerignore
 ```
 
@@ -72,81 +73,60 @@ You do **not** need Docker or a deployed URL to use the assistant — **`localho
 
 Running **`server.py`** uses the **standard library** only (plus `retriever.py` / `database.py`).
 
-### Generate neural embeddings (optional / one-time)
+### Generate neural embeddings (one-time setup)
 
-Only needed if you change `knowledge_base.json` or need to refresh vectors:
+Only needed once, or if you change `knowledge_base.json`:
 
 ```bash
 export LLM_API_KEY='your-student-number'
 pip install openai
 python3 data/embed_kb.py
 # Generates data/embeddings.json (~6 MB, 768-dim vectors)
-# Only needed once, or after updating knowledge_base.json
 ```
 
-### Run the agent on localhost (no Docker)
-
-This is the **main way to run the project locally**: plain Python, no containers, no password screen unless you configure `SITE_API_TOKEN` yourself.
+### Run the agent on localhost
 
 ```bash
 export LLM_API_KEY='your-student-number'
 python3 server.py
 ```
 
-Open **http://localhost:8000** (or **http://127.0.0.1:8000**). The server binds to all interfaces (`0.0.0.0`) if you need another device on your LAN; by default use localhost in the browser.
+Open **http://localhost:8000**. Optional: set `PORT=9000` if 8000 is busy.
 
-Optional: set `PORT=9000` (or any free port) if 8000 is busy — the startup log prints the URL.
+### Run retrieval evaluation
+
+```bash
+python3 data/eval_retrieval.py
+# Runs 25 annotated test cases, prints Top-1 / Top-4 accuracy by category and difficulty
+```
 
 ---
 
 ## Password-protected local run (Docker Compose)
 
-Use this to mirror the “site login + API” behaviour on your machine.
-
-1. Copy `deploy/env.example` to **`.env`** in the project root and fill in:
-   - `LLM_API_KEY`, `BASIC_AUTH_USER`, `BASIC_AUTH_HASH` (from `caddy hash-password`), `SITE_API_TOKEN` (plain secret; simplest is the same password you hashed for Basic Auth).
-2. Start Docker Desktop, then:
+1. Copy `deploy/env.example` to **`.env`** and fill in `LLM_API_KEY`, `BASIC_AUTH_USER`, `BASIC_AUTH_HASH`, `SITE_API_TOKEN`.
+2. Run:
 
 ```bash
 docker compose up --build
 ```
 
-3. Open **http://localhost:8080** (or the host port in `PUBLIC_PORT`). Complete the browser **Basic Auth** prompt; the UI loads and `/api` uses a **Bearer** token injected by the server (`SITE_API_TOKEN`).
+3. Open **http://localhost:8080**, complete the Basic Auth prompt.
 
 ---
 
 ## Public URL (e.g. Render)
 
-Deploy the **`Dockerfile.web`** image: it runs **Python + Caddy** (HTTPS on the host, password gate, same Bearer pattern as local Compose).
+Deploy **`Dockerfile.web`** (Python + Caddy, HTTPS, password gate).
 
-### One-time setup
+| Variable | Purpose |
+|----------|---------|
+| `LLM_API_KEY` | Course LLM key |
+| `SITE_API_TOKEN` | Bearer token for `/api` |
+| `BASIC_AUTH_USER` | Browser login username |
+| `BASIC_AUTH_HASH` | bcrypt hash from `caddy hash-password` |
 
-1. **Do not commit `.env`.** Put secrets only in Render’s **Environment** tab (or your host’s secret store).
-2. Generate a **bcrypt hash** for your chosen site password:
-
-   ```bash
-   caddy hash-password
-   ```
-
-3. Set these variables on the host (values match your chosen password / hash):
-
-   | Variable | Purpose |
-   |----------|---------|
-   | `LLM_API_KEY` | Course LLM key |
-   | `SITE_API_TOKEN` | Plain text secret for `/api` Bearer auth (easiest: same as Basic Auth password) |
-   | `BASIC_AUTH_USER` | Username for the browser login box (e.g. `admin`) |
-   | `BASIC_AUTH_HASH` | Full line printed by `caddy hash-password` (starts with `$2a$` / `$2y$`) |
-
-### Render (typical flow)
-
-1. Push this repo to GitHub (without `.env`).
-2. [Render](https://render.com) → **New** → **Web Service** → connect the repo.
-3. **Runtime:** Docker · **Dockerfile path:** `Dockerfile.web`.
-4. Add the environment variables above; set **Health Check Path** to **`/health`**.
-5. Deploy; open the **`https://…onrender.com`** URL.
-6. Sign in with **Basic Auth**; use the app as usual.
-
-More detail: **`deploy/DEPLOY.txt`**.
+See **`deploy/DEPLOY.txt`** for full instructions.
 
 ---
 
@@ -161,11 +141,13 @@ User Input
 │                                             │
 │  PA check → skip guardrails mid-action      │
 │  grd()    → injection / OOS detection       │
+│             (25+ guard, 20+ OOS patterns)   │
 │  itn()    → intent classification (8 types) │
+│             (rich regex, no LLM token cost) │
 │                                             │
 │  Actions (JS, call /api/action):            │
 │    aTrack()   aTicket()   aConv()           │
-│    aFreeze()  (multi-turn state machine)    │
+│    aFreeze()  (dynamic multi-turn)          │
 │                                             │
 │  KB queries → callClaude() → /api/chat      │
 └──────────┬──────────────────────────────────┘
@@ -180,14 +162,15 @@ User Input
 │  → neural embed │    │  transfer.estimate   │
 │  → cosine sim   │    │  ticket.create       │
 │  → top-4 arts   │    │  card.freeze         │
-│                 │    │  card.replacement    │
-│  Qwen3-30B      │    │  ... 16 actions      │
+│  → TF-IDF       │    │  card.replacement    │
+│    fallback     │    │  ... 16 actions      │
+│  Qwen3-30B      │    │                      │
 │  (reasoning)    │    │                      │
 └─────────────────┘    └──────────────────────┘
            │                      │
            └──────────────────────┘
                        │
-                  mock_db.json
+                  mock_db.json (persistent)
 ```
 
 ---
@@ -200,7 +183,7 @@ User Input
 |---|---|---|
 | `greeting` | "Hi, what can you help me with?" | Welcome message |
 | `track` | "Where is TW-001234?" | Transfer status lookup |
-| `ticket` | "Create a support ticket" | 3-turn ticket creation |
+| `ticket` | "Create a support ticket" | Dynamic ticket creation |
 | `conv` | "Send 800 CAD to PHP" | Fee & rate estimator |
 | `freeze` | "I want to freeze my card" | Card management |
 | `kb` | "What fees does Wise charge?" | RAG knowledge base |
@@ -212,11 +195,13 @@ User Input
 - **402 articles** scraped from wise.com/help across 6 topic areas
 - **Neural embeddings** (768-dim) generated via RSM 8430 A2 endpoint
 - **Cosine similarity** retrieval → top-4 articles passed to Qwen3 as context
-- **Automatic TF-IDF fallback** if embedding API unavailable
+- **Automatic TF-IDF fallback** if embedding API unavailable — KB always works
 - **Source attribution**: clickable article links displayed below every answer
 - **Conversation memory**: last 16 turns sent with each query
 
-### 3. Actions — Multi-turn State Machine
+### 3. Actions — Dynamic Multi-turn State Machine
+
+All actions use a **dynamic multi-turn state machine** — parameters extracted from any message are retained throughout the session and never re-asked once provided. The number of follow-up turns automatically reduces based on how much information was given upfront.
 
 **Track Transfer (1–2 turns)**
 - Detects `TW-XXXXXX` reference inline → immediate DB lookup
@@ -225,44 +210,45 @@ User Input
 - If ID not found: clear error with format guidance
 
 **Fee & Delivery Estimator (1–3 turns)**
-- Collects: source currency → destination currency → amount
-- Validates currency pairs and amount limits against the DB
-- Returns: mid-market rate, Wise fee breakdown, recipient amount, estimated delivery
-- Supports 30+ currency pairs across 15+ currencies
+- Extracts currencies and amounts from natural language in any order
+- `"I want to send 500 CAD to USD, what's the fee?"` → immediate result (0 extra turns)
+- Smart direction inference: if source currency already known, next currency = destination
+- Rejects unsupported crypto (BTC/ETH) with immediate clear message
+- Supports 13 currencies across 30+ pairs
 
-**Create Support Ticket (3 turns)**
-- Turn 1: Collect issue description (min 5 chars, detects transfer ID automatically)
-- Turn 2: Collect priority (High / Medium / Low — validated)
-- Turn 3: Collect email (regex validated)
-- Creates ticket in mock_db.json → returns ticket ID (TKT-XXXXXX)
-- Links ticket to transfer ID if mentioned
+**Create Support Ticket (1–3 turns)**
+- Extracts transfer ID, priority, and email from any message automatically
+- `"TW-001236 delayed 4 days, urgent, alice@example.com"` → ticket created immediately
+- Only asks for missing parameters — distinguishes complaint intent from issue description
+- Returns TKT-XXXXXX confirmation linked to transfer if mentioned
 
-**Card Management (2–4 turns)**
-- **Freeze**: email → looks up card → freezes in DB → confirmation
-- **Unfreeze**: email → checks frozen status → unfreezes in DB
-- **Replacement (lost/stolen)**: email → finds card → collects delivery address → cancels old card → creates replacement reference
-- **Order new card**: email → verifies account status → creates new card record
+**Card Management (1–4 turns)**
+- Detects mode from natural language: freeze / unfreeze / lost→replacement / order
+- Email provided inline → skips email collection step
+- Mode can be refined mid-flow (e.g. user says "freeze" then clarifies "actually it's lost")
+- All operations read/write to persistent mock_db.json
 
 ### 4. Guardrails
 
-**Prompt injection detection (10 patterns):**
-`ignore instructions` · `forget training` · `you are now` · `pretend to be` · `jailbreak` · `system prompt` · `reveal prompt` · `act as DAN` · `disregard guidelines` · `developer mode`
+**Prompt injection detection (25+ patterns):**
+Covers direct override commands (`ignore instructions`, `forget training`, `disregard guidelines`), identity manipulation (`you are now`, `pretend to be`, `act as DAN/GPT`, `roleplay as`), capability unlocking (`unlock full capabilities`, `enable developer mode`, `remove restrictions`), system manipulation (`jailbreak`, `reveal system prompt`), and hypothetical framing bypass (`for a hypothetical scenario with no guidelines`, `if you had no restrictions`).
 
-**Out-of-scope rejection:**
-Cryptocurrency · geography/capitals · weather · sports · cooking · non-Wise CEO queries
+**Out-of-scope rejection (20+ patterns):**
+Cryptocurrency (`what is Bitcoin`, `Ethereum price`) · geography & general knowledge · weather · sports results · cooking & recipes · entertainment · medical symptoms · coding help · translation requests
 
-**Mid-action bypass:** Guardrail checks are skipped for mid-action inputs (e.g. emails, priorities, amounts) to prevent false positives on legitimate collected data.
+**Mid-action bypass:** Guardrail checks are skipped for mid-action inputs (emails, priorities, amounts) to prevent false positives on legitimate collected data.
 
 ### 5. Error Handling
 
 | Scenario | Handling |
 |---|---|
 | Invalid transfer ID | Clear error: "No transfer found for TW-XXXXX" + format guidance |
-| Unsupported currency pair | Lists supported currencies, links to wise.com/pricing |
+| Unsupported currency / crypto | Lists supported currencies, rejects immediately |
 | Invalid email | Re-prompts with example, stays on current step |
 | Embedding API down | Automatic TF-IDF fallback — KB always available |
 | Server error | Caught in try/except → user-friendly message |
-| Ambiguous query | Asks for clarification, provides examples |
+| No frozen card to unfreeze | Informs user card is already active |
+| Replacement already in progress | Shows existing reference ID |
 
 ---
 
@@ -274,7 +260,7 @@ Cryptocurrency · geography/capitals · weather · sports · cooking · non-Wise
 |---|---|---|
 | Embedding model | text-embedding-3-small (768-dim) | RSM 8430 A2 endpoint |
 | Fallback | TF-IDF sparse vectors | Zero latency, no API dependency |
-| Title boost | ×5 | Title matches dominate relevance |
+| Title boost | ×5 | Largest single accuracy gain (+40%) |
 | Category boost | ×2 | Topic-level disambiguation |
 | Content window | 800 chars | Avoids noise from long articles |
 | Stop words | 50+ | Includes "wise" (inflates all scores equally) |
@@ -282,7 +268,7 @@ Cryptocurrency · geography/capitals · weather · sports · cooking · non-Wise
 | Top-K retrieved | 4 | Enough context, keeps prompt concise |
 | Min score | 0.20 | Filters irrelevant results |
 
-### Optimization Results
+### Optimization Results (7 experiments)
 
 | Configuration | Top-1 Accuracy | Top-4 Accuracy |
 |---|---|---|
@@ -290,6 +276,22 @@ Cryptocurrency · geography/capitals · weather · sports · cooking · non-Wise
 | After title boost (5×) | 67% | 87% |
 | After vocab tuning (1,000 terms) | 73% | 87% |
 | After synonym expansion | **73.3%** | **86.7%** |
+
+### Neural Embedding Retrieval (25 test cases)
+
+Evaluated using `data/eval_retrieval.py` with 768-dim neural embeddings:
+
+| Category | Top-1 | Top-4 |
+|---|---|---|
+| Holding Money | 100% | 100% |
+| Wise Business | 100% | 100% |
+| Sending Money | 73% | 82% |
+| Managing Account | 50% | 100% |
+| Wise Card | 50% | 83% |
+| Receiving Money | 0% | 100% |
+| **Overall** | **64%** | **88%** |
+
+> Note: 5 of the 9 Top-1 failures are duplicate articles (identical content published under two category IDs — e.g. WI271 and MA154 share the same freeze/unfreeze content). Excluding duplicates, functional Top-1 accuracy is **84%** and Top-4 is **100%**.
 
 ---
 
@@ -304,6 +306,8 @@ Cryptocurrency · geography/capitals · weather · sports · cooking · non-Wise
 
 **Test users:** alice@example.com · bob@example.com · carol@example.com · dave@example.com
 **Test transfers:** TW-001234 (In Transit) · TW-001236 (Delayed) · TW-009999 (Delayed) · TW-005681 (Cancelled)
+
+State persists across server restarts — freeze a card, restart the server, query again and it's still frozen. Reset with `git checkout data/mock_db.json`.
 
 ### Database Actions (16 total)
 
@@ -333,21 +337,23 @@ card.get / freeze / unfreeze / replacement / order
 ```bash
 pip install requests beautifulsoup4
 cd data && python3 scraper.py
-# Then regenerate embeddings:
-python3 embed_kb.py
+python3 embed_kb.py   # regenerate embeddings after KB update
 ```
 
 ---
 
 ## Evaluation
 
-See `tests/test_cases.md` — 15 proposed test cases across 5 categories, **100% pass rate**.
-See `docs/rag_optimization_report.docx` — RAG optimization write-up.
+See `tests/test_cases.md` — **58 structured test cases** across 6 categories, **95% pass rate (55/58)**.
+See `docs/rag_optimization_report.docx` — 7-experiment RAG optimization write-up.
+See `docs/retrieval_accuracy_report.docx` — neural embedding retrieval evaluation report.
 
-| Category | Cases | Pass Rate |
-|---|---|---|
-| Knowledge Retrieval | 6 | 100% |
-| Intent Routing | 2 | 100% |
-| Action Execution | 4 | 100% |
-| Guardrails | 2 | 100% |
-| Error Handling | 1 | 100% |
+| Category | Cases | Pass | Rate |
+|---|---|---|---|
+| Knowledge Base Q&A | 15 | 14 | 93% |
+| Intent Routing | 7 | 7 | 100% |
+| Multi-turn Actions | 14 | 13 | 93% |
+| Safety & Guardrails | 8 | 8 | 100% |
+| Edge Cases & Error Handling | 6 | 6 | 100% |
+| Multi-hop Knowledge Questions | 8 | 7 | 88% |
+| **Total** | **58** | **55** | **95%** |
