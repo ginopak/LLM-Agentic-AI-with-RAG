@@ -1,6 +1,6 @@
 # Wise Help Assistant — Test Cases
 
-50 structured test cases covering all agent capabilities.
+58 structured test cases covering all agent capabilities.
 All tests run against the live agent at http://localhost:8000.
 
 ---
