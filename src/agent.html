@@ -524,30 +524,63 @@ function pa(txt){var m=txt.replace(/,/g,"").match(/\d+(?:\.\d+)?/);return m?pars
 
 // ── GUARDRAILS ──
 function grd(t) {
-  // Prompt injection
+  // ── GUARD: prompt injection ───────────────────────────────────────────
   var inj = [
-    /ignore (previous|all|your) instructions/i,
-    /forget.*instructions/i,
-    /you are now/i,
-    /pretend (you are|to be)/i,
-    /jailbreak/i,
-    /system prompt/i,
-    /act as .*(unrestricted|evil|dan)/i,
-    /disregard.*guidelines/i,
-    /reveal.*prompt/i,
-    /developer mode/i
+    /ignore (previous|all|your|my|these|the|any)? ?(instructions|guidelines|rules|prompts)/i,
+    /forget (your|all|my|the|these|previous) (instructions|training|rules|guidelines|context)/i,
+    /disregard (your|all|any|these|the) (guidelines|rules|instructions|training)/i,
+    /override (your|the|all|my) (instructions|guidelines|rules|training|safety)/i,
+    /you are now (a|an|the)/i,
+    /pretend (you are|to be) (a|an|the|someone|an AI)/i,
+    /act as (a|an|the) (unrestricted|evil|different|new|uncensored|unfiltered)/i,
+    /\bact as (dan|gpt|chatgpt|claude|gemini|llama|an? ai|an? bot)\b/i,
+    /roleplay as (a|an) (different|unrestricted|evil|new|uncensored)/i,
+    /imagine you (are|have no|were) (a|an|different|no)/i,
+    /you('re| are) (now |)(a |an |)(different|new|unrestricted|evil|uncensored) (AI|assistant|bot|model)/i,
+    /unlock (your |)(full |)(capabilities|potential|mode|access)/i,
+    /enable (developer|god|unrestricted|admin|jailbreak) mode/i,
+    /\bdan mode\b|\bdev mode\b|\bgod mode\b|\bdan\b.*\bmode\b/i,
+    /remove (your |all |)(restrictions|limitations|filters|guardrails|safety)/i,
+    /bypass (your |the |)(safety|filter|restriction|guideline|rule)/i,
+    /\bjailbreak\b/i,
+    /\bsystem prompt\b.*\b(show|reveal|print|display|tell me|what is)\b/i,
+    /\b(show|reveal|print|display|tell me|what is)\b.*\bsystem prompt\b/i,
+    /what (are|were) your (original |)instructions/i,
+    /repeat (your |the |)(system |)(prompt|instructions|context) (back|to me|verbatim)/i,
+    /hypothetically.{0,30}(no guidelines|no restrictions|no rules|unconstrained)/i,
+    /for (a |)(creative writing|educational|research|fictional|hypothetical) (exercise|purpose|scenario).{0,50}(pretend|act|behave|respond)/i,
+    /if you (had|have|were) no (guidelines|restrictions|rules|training)/i,
+    /as (a |an |)(thought experiment|hypothetical).{0,30}(ignore|forget|pretend)/i,
   ];
   for (var i=0;i<inj.length;i++) if (inj[i].test(t)) return "inj";
 
-  // Out of scope — topics clearly unrelated to Wise/finance
-  var oot = [
-    /\b(bitcoin|ethereum|crypto(?:currency)?|nft|dogecoin|solana)\b/i,
-    /\bself.?harm\b/i,
-    /\b(capital of|president of|prime minister|weather in|recipe for|who won|sports score|movie|netflix|spotify)\b/i,
-    /\b(geography|history|science|math|programming|code for|write me a)\b/i,
-    /\b(ceo|founder|chairman)\b(?!.*wise)/i,
-  ];
-  for (var j=0;j<oot.length;j++) if (oot[j].test(t) && !/wise|transfer|fee|card|account|money|currency|exchange|send|receive/i.test(t)) return "oot";
+  // ── OOS: unrelated to Wise/finance ────────────────────────────────────
+  var wiseCtx = /wise|transfer|fee|card|account|money|currency|exchange|send|receive|payment|bank|verif|refund|balance|wallet|international/i.test(t);
+  if (!wiseCtx) {
+    var oot = [
+      /\b(capital of|president of|prime minister of|king of|queen of)\b/i,
+      /\b(population of|area of|flag of|language of)\b/i,
+      /\b(where is|what country is|which country)\b.{0,20}\b(located|found|situated)\b/i,
+      /\b(weather|temperature|forecast|climate|rain|snow|sunny|cloudy)\b/i,
+      /\b(what.s|how is|what is|how.s)\b.{0,10}\b(the |)(weather|temperature|forecast)\b/i,
+      /\b(who won|score of|result of|match between|game between)\b/i,
+      /\b(nba|nfl|nhl|mlb|epl|premier league|champions league|world cup)\b/i,
+      /\b(movie|film|show|series|episode|actor|actress|director)\b.{0,15}\b(recommend|good|best|watch|review)\b/i,
+      /\b(recipe for|how to (cook|make|bake|prepare)|ingredients for)\b/i,
+      /\b(restaurant|hotel|cafe|bar)\b.{0,15}\b(recommend|near|best|good)\b/i,
+      /\b(who (invented|discovered|wrote|directed|composed|created))\b/i,
+      /\b(write me a (poem|story|essay|song|joke|code|script|haiku))\b/i,
+      /\b(debug|fix|code|program|script)\b.{0,20}\b(python|javascript|java|react|html|css|sql)\b/i,
+      /\b(translate .{1,30} (to|into) (french|spanish|german|chinese|japanese|korean))\b/i,
+      /\b(symptoms of|treatment for|cure for|medication for|diagnosis of)\b/i,
+      // Crypto / non-financial assets
+      /\b(what is|what are|explain|tell me about)\b.{0,10}\b(bitcoin|ethereum|crypto|nft|blockchain|dogecoin|solana|ripple|litecoin)\b/i,
+      /\b(bitcoin|ethereum|nft|dogecoin|solana|ripple|litecoin)\b.{0,20}\b(price|value|worth|invest|buy|sell|mining)\b/i,
+      // General knowledge "what is X" for non-Wise topics
+      /\bwhat is\b.{0,20}\b(the meaning of|the definition of|a|an)\b.{0,30}\b(in (science|biology|chemistry|physics|history|math|literature))\b/i,
+    ];
+    for (var j=0;j<oot.length;j++) if (oot[j].test(t)) return "oot";
+  }
   return null;
 }
 
@@ -567,33 +600,68 @@ function itn(t) {
   if (/\b(want|need|can i|how do i|help me)\b.*\b(cancel|void)\b.*\b(transfer|transaction)\b/i.test(t)) return "cancel";
 
   // ── TRACK TRANSFER ────────────────────────────────────────────────────
-  if (/\b(track|where is|status of|check.*transfer|transfer.*status|my transfer|look up.*transfer|find.*transfer|TW-?\d)/i.test(t)) return "track";
-  // Reference number alone
+  // Reference number present
   if (/\bTW[-]?[A-Z0-9]{4,8}\b/i.test(t)) return "track";
+  // Explicit tracking language
+  if (/\b(track|where is|status of|check.*transfer|transfer.*status|look up.*transfer|find.*transfer)\b/i.test(t)) return "track";
+  // Transfer arrival/receipt issues
+  if (/\b(my|the)\b.{0,15}\b(transfer|payment|money|funds)\b.{0,30}\b(arrived|received|missing|not here|delayed|stuck|pending|still processing)\b/i.test(t)) return "track";
+  if (/\b(transfer|payment|money)\b.{0,20}\b(hasn.t|haven.t|not yet|still hasn.t)\b.{0,20}\b(arrived|reached|received|shown up)\b/i.test(t)) return "track";
+  if (/\bwhere.s my (money|transfer|payment|funds)\b/i.test(t)) return "track";
+  if (/\b(how long|when will).{0,20}\b(transfer|payment|money)\b.{0,20}\b(arrive|reach|be received|complete|take)\b/i.test(t)) return "track";
+  if (/\b(check|look up|view|see).{0,15}\b(my |the |)(transfer|payment|transaction)\b/i.test(t)) return "track";
+  if (/\bmy (recent |last |latest |)(transfer|payment|transaction)\b/i.test(t)) return "track";
 
   // ── CREATE TICKET ─────────────────────────────────────────────────────
-  if (/\b(create|raise|submit|make|file|log|open|start)\b.*\b(ticket|issue|case|complaint|request|report)\b/i.test(t)) return "ticket";
-  if (/\b(support|help).*(ticket|case|request)\b/i.test(t)) return "ticket";
-  if (/\b(report|escalate)\b.*\b(problem|issue|transfer|delay)\b/i.test(t)) return "ticket";
+  if (/\b(create|raise|submit|make|file|log|open|start|place)\b.{0,15}\b(ticket|tickets|case|complaint|report|request|issue)\b/i.test(t)) return "ticket";
+  if (/\b(support|help|customer service).{0,10}\b(ticket|tickets|case|request|issue)\b/i.test(t)) return "ticket";
+  if (/\b(report|escalate)\b.{0,20}\b(problem|issue|transfer|delay|bug|error)\b/i.test(t)) return "ticket";
+  if (/\b(need|want|like).{0,15}\b(to speak|to talk|to contact|help from|support from)\b.{0,15}\b(someone|a person|an agent|support|team|Wise)\b/i.test(t)) return "ticket";
+  if (/\b(formal|official)\b.{0,10}\b(complaint|report|request)\b/i.test(t)) return "ticket";
+  if (/\b(this is|very|extremely|so).{0,10}\b(urgent|frustrating|unacceptable|ridiculous)\b/i.test(t) && /wise|transfer|money|card|account/i.test(t)) return "ticket";
 
-  // ── FEE ESTIMATOR / CURRENCY CONVERSION ──────────────────────────────
-  if (/\b(convert|exchange|how much|estimate|fee|cost|send|transfer)\b.*\b(usd|eur|gbp|cad|aud|jpy|inr|mxn|php|sgd|nzd|ghs|ngn)\b/i.test(t)) return "conv";
-  if (/\b(usd|eur|gbp|cad|aud|jpy|inr|mxn|php|sgd|nzd|ghs|ngn)\b.*\b(to|into|→)\b/i.test(t)) return "conv";
-  if (/\b(how much|what.*cost|fee|rate|estimate)\b.*\b(send|transfer|money)\b/i.test(t)) return "conv";
-  // "I want to send money" / "I want to send some money"
-  if (/\b(want to|need to|like to|going to|plan to)\b.*\b(send|transfer)\b.*\b(money|funds|cash)\b/i.test(t)) return "conv";
-  if (/\b(send|transfer)\b.*(money|funds|cash)\b/i.test(t) && !/\bhow do i\b/i.test(t)) return "conv";
+  // ── FEE ESTIMATOR / CONVERSION ────────────────────────────────────────
+  // Two currency codes present
+  var CURR = /\b(USD|EUR|GBP|CAD|AUD|JPY|INR|MXN|PHP|SGD|NZD|GHS|NGN)\b/gi;
+  var currMatches = t.match(CURR) || [];
+  var hasAmount   = /\b\d[\d,]*(\.\d{1,2})?\b/.test(t);
 
-  // ── CARD FREEZE / UNFREEZE / LOST / REPLACEMENT ───────────────────────
-  if (/\b(freeze|unfreeze|block|lock|unlock)\b.*\bcard\b/i.test(t)) return "freeze";
-  if (/\bcard\b.*\b(freeze|unfreeze|block|lock|unlock|lost|stolen|missing|replace|replacement)\b/i.test(t)) return "freeze";
-  if (/\b(lost|stolen|missing|replace|replacement)\b.*\bcard\b/i.test(t)) return "freeze";
-  if (/\bmy card\b.*(lost|stolen|missing|not working|blocked|freeze)/i.test(t)) return "freeze";
-  if (/\b(want to|need to)\b.*\b(freeze|block|lock)\b/i.test(t)) return "freeze";
-  if (/\border.*\b(new|a)\b.*\bcard\b/i.test(t)) return "freeze";
+  if (currMatches.length >= 2) return "conv";
+  if (currMatches.length >= 1 && hasAmount) return "conv";
 
-  // ── GREETING ──────────────────────────────────────────────────────────
-  if (/^(hi|hello|hey|good morning|good afternoon|howdy|hiya|sup|what's up)\b/i.test(t)) return "hi";
+  // Natural language currency + amount patterns
+  if (/\b(send|transfer|convert|exchange|estimate|calculate)\b.{0,30}\b(dollar|euro|pound|yen|rupee|peso|canadian|australian|singapore)\b/i.test(t)) return "conv";
+  if (/\b(how much|what).{0,20}\b(recipient|receiver|they|he|she|my friend|my family)\b.{0,20}\b(get|receive|gets|receives|end up with)\b/i.test(t)) return "conv";
+  if (/\b(what.s|what is|calculate|estimate)\b.{0,15}\b(the |)(fee|fees|cost|charge|rate|exchange rate)\b.{0,20}\b(for |to |of |when )(send|transfer|convert|sending|transferring)\b/i.test(t)) return "conv";
+  if (/\b(want|need|like|going|plan|trying)\b.{0,10}\b(to|and)\b.{0,10}\b(send|transfer)\b.{0,30}\b(money|funds|cash|abroad|overseas|internationally|to my|to a)\b/i.test(t)) return "conv";
+  if (/\b(send|transfer)\b.{0,20}\b(dollars?|euros?|pounds?|yen|rupees?|pesos?|cad|usd|eur|gbp)\b/i.test(t)) return "conv";
+  if (/\b(international|overseas|abroad).{0,20}\b(transfer|send|wire|remittance)\b/i.test(t) && hasAmount) return "conv";
+  if (/\b(how much|what).{0,20}\b(does it cost|will it cost|is the fee|are the fees)\b.{0,20}\b(to send|to transfer|sending|transferring)\b/i.test(t)) return "conv";
+  if (/\b(remit|remittance|wire|wiring)\b.{0,20}\b(money|funds|cash|\d)\b/i.test(t)) return "conv";
+
+  // ── CARD MANAGEMENT ───────────────────────────────────────────────────
+  if (/\b(freeze|unfreeze|block|lock|unlock)\b.{0,20}\bcard\b/i.test(t)) return "freeze";
+  if (/\bcard\b.{0,20}\b(freeze|unfreeze|block|lock|unlock|lost|stolen|missing|replace|replacement|damaged|not working|declined)\b/i.test(t)) return "freeze";
+  if (/\b(lost|stolen|missing|damaged)\b.{0,20}\b(my |the |)(wise |)card\b/i.test(t)) return "freeze";
+  if (/\b(report|cancel).{0,15}\b(lost|stolen|missing|damaged)\b.{0,20}\bcard\b/i.test(t)) return "freeze";
+  if (/\b(order|get|request|apply for).{0,15}\b(a |new |another )(wise |physical |virtual |)(card|debit card)\b/i.test(t)) return "freeze";
+  if (/\b(card|wise card)\b.{0,20}\b(not working|isn.t working|stopped working|keeps declining|being declined)\b/i.test(t)) return "freeze";
+  if (/\bwise (debit |physical |virtual |)card\b.{0,20}\b(problem|issue|help)\b/i.test(t)) return "freeze";
+
+  // ── GREETING ─────────────────────────────────────────────────────────
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening|howdy|hiya|sup|greetings|what.s up)\b/i.test(t)) return "hi";
+
+  // Additional conv patterns
+  if (/\b(convert|exchange)\b.{0,20}\b(euros?|pounds?|dollars?|yen|rupees?|pesos?|canadian|australian)\b/i.test(t)) return "conv";
+  if (/\b(wire|wiring|remit|remittance)\b.{0,20}\b(\d|dollars?|money|funds)\b/i.test(t)) return "conv";
+  if (/\b(philippine pesos?|philippine peso)\b/i.test(t)) return "conv";
+
+  // Additional ticket patterns
+  if (/\b(report)\b.{0,15}\b(a |)(problem|issue|error|bug|mistake)\b/i.test(t)) return "ticket";
+
+  // Additional freeze patterns
+  if (/\b(can.t find|cannot find|lost|misplaced)\b.{0,20}\b(my |the |)(wise |)card\b/i.test(t)) return "freeze";
+  if (/\bcard\b.{0,20}\b(gone|disappeared|can.t find|cannot find)\b/i.test(t)) return "freeze";
 
   return "kb";
 }
@@ -772,124 +840,190 @@ async function aCancel(t) {
 }
 
 async function aTicket(t) {
-  if (!PA) {
-    PA="ticket"; STEP=1; DATA={}; updAx();
-    // Check if a transfer ID is mentioned
-    var rf = t.match(/\bTW[-]?[A-Z0-9]{4,8}\b/i);
-    if (rf) DATA.transfer_id = rf[0].toUpperCase().replace(/^TW([^-])/,"TW-$1");
-    return {h:"<p>I'll create a support ticket for you. Please <strong>describe your issue</strong> in detail.</p>"
-      +(DATA.transfer_id?"<p style='font-size:12px;color:var(--mu)'>I see this is related to transfer <strong>"+DATA.transfer_id+"</strong>.</p>":""), it:"action"};
+  function extractRef(txt)   { var m=txt.match(/\bTW[-]?\s*([A-Z0-9]{4,8})\b/i); return m?"TW-"+m[1].toUpperCase():null; }
+  function extractEmail(txt) { var m=txt.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i); return m?m[0].toLowerCase():null; }
+  function extractPriority(txt) {
+    if (/\b(high|urgent|critical|asap|emergency|immediately|right away)\b/i.test(txt)) return "High";
+    if (/\b(low|minor|whenever|no rush|not urgent|small)\b/i.test(txt))               return "Low";
+    if (/\b(medium|normal|moderate|standard|regular)\b/i.test(txt))                   return "Medium";
+    return null;
   }
-  if (PA==="ticket") {
-    if (STEP===1) {
-      if (t.trim().length < 5) return {h:"<p>Please describe your issue in more detail so our team can help you.</p>", it:"action"};
+  // Matches ANY message that is just expressing intent to create a ticket
+  // without describing an actual issue — these should prompt for description
+  function isIntentOnly(txt) {
+    return /\b(create|raise|open|submit|make|file|log|start|place|report|escalate|need|want|like)\b.{0,20}\b(a |)(ticket|tickets|case|complaint|complaints|report|issue|problem|concern|request|support)\b/i.test(txt.trim()) ||
+           /\b(need|want|like|would like)\b.{0,15}\b(help|assistance|support)\b.{0,15}\b(from|with|on)\b/i.test(txt.trim()) ||
+           /\b(contact|speak|talk)\b.{0,15}\b(support|customer service|an agent|someone|a person|wise team)\b/i.test(txt.trim());
+  }
+
+  var ref   = extractRef(t);
+  var email = extractEmail(t);
+  var pri   = extractPriority(t);
+
+  if(!PA) {
+    PA="ticket"; updAx();
+    DATA = {transfer_id:ref||null, email:email||null, priority:pri||null, issue:null};
+
+    // Only save as issue if message is clearly describing a problem
+    // NOT just expressing intent to create a ticket
+    if(!isIntentOnly(t) && t.trim().length > 20) {
       DATA.issue = t.trim();
-      // Also capture transfer ID from issue description
-      var rf2 = t.match(/\bTW[-]?[A-Z0-9]{4,8}\b/i);
-      if (rf2 && !DATA.transfer_id) DATA.transfer_id = rf2[0].toUpperCase().replace(/^TW([^-])/,"TW-$1");
-      STEP=2;
-      return {h:"<p>Got it. What is the <strong>priority</strong> of this issue?</p>"
-        +"<p><strong>High</strong> — urgent, affecting money movement<br>"
-        +"<strong>Medium</strong> — important but not blocking<br>"
-        +"<strong>Low</strong> — general inquiry or feedback</p>", it:"action"};
     }
-    if (STEP===2) {
-      var pri = /high/i.test(t)?"High":/low/i.test(t)?"Low":"Medium";
-      DATA.priority = pri; STEP=3;
-      return {h:"<p>Priority set to <strong>"+pri+"</strong>. Please enter your <strong>email address</strong> so our team can respond to you.</p>", it:"action"};
+
+    return await _ticketNext();
+  }
+
+  if(PA==="ticket") {
+    if(ref   && !DATA.transfer_id) DATA.transfer_id=ref;
+    if(email && !DATA.email)       DATA.email=email;
+    if(pri   && !DATA.priority)    DATA.priority=pri;
+
+    if(!DATA.issue) {
+      var bareAnswer = /^(high|medium|low|urgent|critical|asap)$/i.test(t.trim()) ||
+                       /^[\w.+-]+@[\w-]+\.[a-z]{2,}$/i.test(t.trim()) ||
+                       isIntentOnly(t);
+      if(!bareAnswer && t.trim().length > 5) DATA.issue = t.trim();
     }
-    if (STEP===3) {
-      var em = t.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
-      if (!em) return {h:"<p>Please enter a valid email address, e.g. <strong>name@example.com</strong></p>", it:"action"};
-      DATA.email = em[0].toLowerCase();
-      var issue=DATA.issue, pri=DATA.priority, email=DATA.email, tid=DATA.transfer_id||null;
-      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
-      try {
-        var d = await callAction("ticket.create",{user_email:email, issue:issue, priority:pri, related_transfer_id:tid});
-        if (d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
-        return {h:"<p>&#10003; Support ticket created!</p>"
-          +"<div class='ac'><div class='at'>Support Ticket</div>"
-          +"<div class='ar'><span class='al'>Ticket ID</span><span class='av2' style='font-weight:700;color:var(--gd)'>"+esc(d.ticket_id)+"</span></div>"
-          +"<div class='ar'><span class='al'>Priority</span><span class='av2'>"+esc(d.priority)+"</span></div>"
-          +"<div class='ar'><span class='al'>Status</span><span class='av2'>"+esc(d.status)+"</span></div>"
-          +"<div class='ar'><span class='al'>Contact email</span><span class='av2'>"+esc(email)+"</span></div>"
-          +(tid?"<div class='ar'><span class='al'>Related transfer</span><span class='av2'>"+esc(tid)+"</span></div>":"")
-          +"<div class='as ok'>&#9679; Submitted</div></div>"
-          +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>"+esc(d.message)+"</p>",
-          it:"action"};
-      } catch(e) {
-        return {h:"<p>&#9888; Error creating ticket: "+esc(e.message)+"</p>", it:"action"};
-      }
-    }
+
+    return await _ticketNext();
+  }
+}
+
+async function _ticketNext() {
+  // If all params collected → create ticket
+  if(DATA.issue && DATA.priority && DATA.email) {
+    var issue=DATA.issue, pri=DATA.priority, email=DATA.email, tid=DATA.transfer_id||null;
+    PA=null;STEP=0;DATA={};updAx();STATS.act++;updSt();
+    try {
+      var d = await callAction("ticket.create",{user_email:email,issue:issue,priority:pri,related_transfer_id:tid});
+      if(d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>",it:"action"};
+      return {h:"<p>&#10003; Support ticket created!</p>"
+        +"<div class='ac'><div class='at'>Support Ticket</div>"
+        +"<div class='ar'><span class='al'>Ticket ID</span><span class='av2' style='font-weight:700;color:var(--gd)'>"+esc(d.ticket_id)+"</span></div>"
+        +"<div class='ar'><span class='al'>Priority</span><span class='av2'>"+esc(d.priority)+"</span></div>"
+        +"<div class='ar'><span class='al'>Status</span><span class='av2'>"+esc(d.status)+"</span></div>"
+        +"<div class='ar'><span class='al'>Contact email</span><span class='av2'>"+esc(email)+"</span></div>"
+        +(tid?"<div class='ar'><span class='al'>Related transfer</span><span class='av2'>"+esc(tid)+"</span></div>":"")
+        +"<div class='as ok'>&#9679; Submitted</div></div>"
+        +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>"+esc(d.message)+"</p>",it:"action"};
+    } catch(e) { return {h:"<p>&#9888; Error: "+esc(e.message)+"</p>",it:"action"}; }
+  }
+
+  // Ask only for what's missing — in logical order
+  if(!DATA.issue) {
+    return {h:"<p>Please <strong>describe your issue</strong> in detail.</p>"
+      +(DATA.transfer_id?"<p style='font-size:12px;color:var(--mu)'>Related transfer: <strong>"+DATA.transfer_id+"</strong></p>":""),
+      it:"action"};
+  }
+  if(!DATA.priority) {
+    return {h:"<p>What is the <strong>priority</strong>?</p>"
+      +"<p><strong>High</strong> — urgent, money is affected<br>"
+      +"<strong>Medium</strong> — important but not blocking<br>"
+      +"<strong>Low</strong> — general inquiry or feedback</p>",it:"action"};
+  }
+  if(!DATA.email) {
+    return {h:"<p>Please enter your <strong>email address</strong> so our team can respond to you.</p>",it:"action"};
   }
 }
 
 async function aConv(t) {
-  var currencies = ["USD","EUR","GBP","CAD","AUD","JPY","INR","MXN","PHP","SGD","NZD","GHS","NGN"];
-  function extractCurrencies(txt) {
+  var SUPPORTED = ["USD","EUR","GBP","CAD","AUD","JPY","INR","MXN","PHP","SGD","NZD","GHS","NGN"];
+  var SUPPORTED_SET = {}; SUPPORTED.forEach(function(c){SUPPORTED_SET[c]=true;});
+  var CRYPTO = /\b(bitcoin|btc|ethereum|eth|crypto|usdt|usdc|xrp|sol|bnb|doge)\b/i;
+
+  function extractAll(txt) {
     var found = [];
-    currencies.forEach(function(c){ if (new RegExp("\\b"+c+"\\b","i").test(txt)) found.push(c); });
-    // Also detect words like "dollars", "euros", "pounds", "canadian"
-    if (/\bcanadian|\bcad\b/i.test(txt) && found.indexOf("CAD")<0) found.push("CAD");
-    if (/\beuros?\b/i.test(txt) && found.indexOf("EUR")<0) found.push("EUR");
-    if (/\bpounds?\b|\bsterling\b/i.test(txt) && found.indexOf("GBP")<0) found.push("GBP");
-    if (/\bdollars?\b/i.test(txt) && found.indexOf("USD")<0) found.push("USD");
-    if (/\byen\b/i.test(txt) && found.indexOf("JPY")<0) found.push("JPY");
-    if (/\brupees?\b/i.test(txt) && found.indexOf("INR")<0) found.push("INR");
-    if (/\bpeso/i.test(txt) && found.indexOf("MXN")<0) found.push("MXN");
-    if (/\bphilippine|\bphp\b/i.test(txt) && found.indexOf("PHP")<0) found.push("PHP");
-    if (/\baustr/i.test(txt) && found.indexOf("AUD")<0) found.push("AUD");
-    return found;
-  }
-  function extractAmount(txt) {
-    var m = txt.match(/[\d,]+(?:\.\d{1,2})?/);
-    return m ? parseFloat(m[0].replace(/,/g,"")) : null;
-  }
-  function supportedMsg() {
-    return "Supported: " + currencies.join(", ");
+    // Match uppercase currency codes
+    (txt.match(/\b[A-Z]{3}\b/g)||[]).forEach(function(c){ if(SUPPORTED_SET[c]&&found.indexOf(c)<0) found.push(c); });
+    // Also lowercase
+    SUPPORTED.forEach(function(c){ if(new RegExp("\\b"+c+"\\b","i").test(txt)&&found.indexOf(c)<0) found.push(c); });
+    // Natural language words
+    var wordMap = [
+      [/\bcanadian\b/i,"CAD"],[/\baustrali/i,"AUD"],[/\bsingapore\b/i,"SGD"],
+      [/\beuros?\b/i,"EUR"],[/\bpounds?\b|\bsterling\b/i,"GBP"],
+      [/\b(us\s*)?dollars?\b/i,"USD"],[/\byen\b/i,"JPY"],
+      [/\brupees?\b/i,"INR"],[/\bpesos?\b/i,"MXN"],
+      [/\bphilippine|peso.*ph/i,"PHP"],[/\bnew zealand\b/i,"NZD"],
+    ];
+    wordMap.forEach(function(p){ if(p[0].test(txt)&&found.indexOf(p[1])<0) found.push(p[1]); });
+
+    // Infer direction from "from X to Y" syntax
+    var fr=null, to=null;
+    var fromM = txt.match(/\bfrom\b\s+([A-Z]{3}|\w+\s*dollars?|\w+\s*euros?|\w+\s*pounds?)/i);
+    var toM   = txt.match(/\bto\b\s+([A-Z]{3}|\w+\s*dollars?|\w+\s*euros?|\w+\s*pounds?)/i);
+    if(fromM){ var fc=fromM[1].toUpperCase().slice(0,3); if(SUPPORTED_SET[fc]) fr=fc; }
+    if(toM){   var tc=toM[1].toUpperCase().slice(0,3);   if(SUPPORTED_SET[tc]) to=tc; }
+    // Fallback order
+    if(!fr && found.length>0) fr=found[0];
+    if(!to && found.length>1) to=found[1];
+
+    var amM = txt.match(/\b([\d,]+(?:\.\d{1,2})?)\b/);
+    var am  = amM ? parseFloat(amM[1].replace(/,/g,"")) : null;
+    return {fr:fr, to:to, am:am};
   }
 
-  if (!PA) {
-    var cs = extractCurrencies(t);
-    var am = extractAmount(t);
-    // If we have from→to + amount, go immediately
-    if (cs.length>=2 && am) return await fConv(cs[0], cs[1], am);
-    // Start multi-turn
+  function missingMsg(data) {
+    var supported = "Supported: "+SUPPORTED.join(", ");
+    if(!data.fr) return {h:"<p>What <strong>currency</strong> are you sending <strong>from</strong>?</p><p style='font-size:12px;color:var(--mu)'>"+supported+"</p>", it:"action"};
+    if(!data.to) return {h:"<p>Sending from <strong>"+data.fr+"</strong>. What currency is your <strong>recipient receiving</strong>?</p>", it:"action"};
+    return {h:"<p>Converting <strong>"+data.fr+" &#8594; "+data.to+"</strong>. How much are you sending?</p><p style='font-size:12px;color:var(--mu)'>Enter the amount in "+data.fr+".</p>", it:"action"};
+  }
+
+  // Always extract from current message
+  var ex = extractAll(t);
+
+  // Check for unsupported crypto
+  if(CRYPTO.test(t) && !PA) {
+    var cryptoName = (t.match(CRYPTO)||["cryptocurrency"])[0];
+    return {h:"<p>&#10060; <strong>"+esc(cryptoName)+"</strong> is not supported by Wise.</p>"
+      +"<p>Wise supports traditional currencies only. "+["Supported: "+SUPPORTED.join(", ")]+"</p>"
+      +"<p>Would you like to estimate a transfer in a supported currency?</p>", it:"action"};
+  }
+
+  if(!PA) {
+    // Merge extracted info into DATA
+    DATA = {fr:ex.fr||null, to:ex.to||null, am:ex.am||null};
+    // If all params present, go immediately (0 extra turns)
+    if(DATA.fr && DATA.to && DATA.am) {
+      return await fConv(DATA.fr, DATA.to, DATA.am);
+    }
     PA="conv"; updAx();
-    DATA = {fr: cs[0]||null, to: cs[1]||null, am: am};
-    if (!cs[0]) {
-      STEP=1;
-      return {h:"<p>I can estimate your transfer fee and exchange rate. What <strong>currency</strong> are you sending <strong>from</strong>?</p><p style='font-size:12px;color:var(--mu)'>"+supportedMsg()+"</p>", it:"action"};
-    }
-    if (!cs[1]) {
-      STEP=2;
-      return {h:"<p>Sending from <strong>"+cs[0]+"</strong>. What currency is your recipient receiving?</p>", it:"action"};
-    }
-    STEP=3;
-    return {h:"<p>Converting <strong>"+cs[0]+" &#8594; "+cs[1]+"</strong>. How much are you sending?</p>", it:"action"};
+    return missingMsg(DATA);
   }
 
-  if (PA==="conv") {
-    var cs2 = extractCurrencies(t);
-    var am2 = extractAmount(t);
+  if(PA==="conv") {
+    // Merge new info — smart assignment based on what's already collected
+    if(ex.am && !DATA.am) DATA.am=ex.am;
+    if(!DATA.fr && ex.fr) { DATA.fr=ex.fr; }
+    else if(DATA.fr && !DATA.to) {
+      // fr already set — any new currency goes to `to`
+      if(ex.to) DATA.to=ex.to;
+      else if(ex.fr && ex.fr!==DATA.fr) DATA.to=ex.fr;
+      else {
+        // Single currency typed — must be the destination
+        var CURR_RE2=/\b(USD|EUR|GBP|CAD|AUD|JPY|INR|MXN|PHP|SGD|NZD|GHS|NGN)\b/gi;
+        var typed=(t.match(CURR_RE2)||[]);
+        if(typed.length===1 && typed[0]!==DATA.fr) DATA.to=typed[0];
+      }
+    }
+    if(!DATA.to && ex.to) DATA.to=ex.to;
 
-    if (STEP===1) {
-      if (!cs2.length) return {h:"<p>Please enter a currency code, e.g. <strong>CAD</strong>, <strong>USD</strong>, <strong>GBP</strong>.</p><p style='font-size:12px;color:var(--mu)'>"+supportedMsg()+"</p>", it:"action"};
-      DATA.fr = cs2[0]; STEP=2;
-      return {h:"<p>Sending from <strong>"+DATA.fr+"</strong>. What currency is your recipient receiving?</p>", it:"action"};
+    // Validate: reject unsupported currency typed mid-flow
+    var CURR_RE = /\b[A-Z]{3}\b/g;
+    var typed = (t.match(CURR_RE)||[]);
+    for(var i=0;i<typed.length;i++){
+      if(!SUPPORTED_SET[typed[i]] && typed[i].length===3) {
+        if(CRYPTO.test(t)) return {h:"<p>&#10060; Wise doesn't support cryptocurrency. Please enter a supported currency.</p>", it:"action"};
+      }
     }
-    if (STEP===2) {
-      if (!cs2.length) return {h:"<p>Please enter the destination currency, e.g. <strong>EUR</strong>, <strong>PHP</strong>, <strong>INR</strong>.</p>", it:"action"};
-      DATA.to = cs2[0]; STEP=3;
-      return {h:"<p>Converting <strong>"+DATA.fr+" &#8594; "+DATA.to+"</strong>. How much are you sending?</p><p style='font-size:12px;color:var(--mu)'>Enter the amount in "+DATA.fr+".</p>", it:"action"};
+
+    // Check if complete now
+    if(DATA.fr && DATA.to && DATA.am) {
+      var fr=DATA.fr,to=DATA.to,am=DATA.am;
+      PA=null;STEP=0;DATA={};updAx();
+      return await fConv(fr,to,am);
     }
-    if (STEP===3) {
-      if (!am2 || am2<=0) return {h:"<p>Please enter the amount you want to send in <strong>"+DATA.fr+"</strong>. For example: <em>500</em>.</p>", it:"action"};
-      DATA.am = am2;
-      var fr3=DATA.fr, to3=DATA.to, am3=DATA.am;
-      PA=null; STEP=0; DATA={}; updAx();
-      return await fConv(fr3, to3, am3);
-    }
+    return missingMsg(DATA);
   }
 }
 async function fConv(fr, to, am) {
@@ -914,137 +1048,127 @@ async function fConv(fr, to, am) {
 }
 
 async function aFreeze(t) {
-  var isLost    = /\b(lost|stolen|missing)\b/i.test(t);
-  var isUnfreeze= /\b(unfreeze|unlock|unblock)\b/i.test(t);
-  var isOrder   = /\border\b.*\b(new|a)\b.*\bcard\b/i.test(t);
-  var emMatch   = t && t.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+  function extractEmail(txt) { var m=txt.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i); return m?m[0].toLowerCase():null; }
+  function detectMode(txt) {
+    if (/\b(lost|stolen|missing|gone|can.t find)\b.{0,20}\b(my |the |)(wise |)card\b/i.test(txt)) return "replacement";
+    if (/\bcard\b.{0,20}\b(lost|stolen|missing|gone)\b/i.test(txt)) return "replacement";
+    if (/\b(unfreeze|unlock|unblock|reactivate|re-enable)\b/i.test(txt)) return "unfreeze";
+    if (/\b(order|get|request|apply for|need)\b.{0,15}\b(a |new |another )(wise |physical |virtual |)(card|debit card)\b/i.test(txt)) return "order";
+    return "freeze";
+  }
 
-  // ── No active action yet ─────────────────────────────────────────────
-  if (!PA) {
+  var email = extractEmail(t);
+
+  if(!PA) {
     PA="freeze"; updAx();
-    DATA = {
-      mode: isLost?"replacement": isUnfreeze?"unfreeze": isOrder?"order":"freeze"
-    };
-    // If email already in message, skip to step 2
-    if (emMatch) {
-      DATA.email = emMatch[0].toLowerCase();
-      STEP=2;
-      return await _freezeStep2(t);
-    }
-    STEP=1;
-    var modeLabel = DATA.mode==="replacement"?"card replacement"
-                  : DATA.mode==="unfreeze"?"card unfreeze"
-                  : DATA.mode==="order"?"new card order"
-                  : "card freeze";
-    return {h:"<p>I can help you with a <strong>"+modeLabel+"</strong>.</p>"
+    DATA = {mode:detectMode(t), email:email||null, address:null};
+    // If email already provided → skip to card lookup
+    if(DATA.email) return await _freezeExec();
+    var modeLabel = {replacement:"card replacement",unfreeze:"card unfreeze",order:"new card order",freeze:"card freeze"}[DATA.mode];
+    return {h:"<p>I can help with <strong>"+modeLabel+"</strong>.</p>"
       +"<p>Please provide your <strong>Wise account email address</strong> so I can look up your card.</p>",
       it:"action"};
   }
 
-  // ── Step 1: collect email ─────────────────────────────────────────────
-  if (PA==="freeze" && STEP===1) {
-    var em = t.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
-    if (!em) return {h:"<p>Please enter a valid email address, e.g. <strong>name@example.com</strong></p>", it:"action"};
-    DATA.email = em[0].toLowerCase();
-    STEP=2;
-    return await _freezeStep2(t);
-  }
+  if(PA==="freeze") {
+    // Refine mode if user clarifies
+    var newMode = detectMode(t);
+    if(newMode!=="freeze") DATA.mode=newMode;
 
-  // ── Step 2: clarify action (if ambiguous) or collect address ──────────
-  if (PA==="freeze" && STEP===2) {
-    return await _freezeStep2(t);
-  }
+    if(!DATA.email) {
+      email=extractEmail(t);
+      if(!email) return {h:"<p>Please enter a valid email address, e.g. <strong>name@example.com</strong></p>",it:"action"};
+      DATA.email=email;
+    }
 
-  // ── Step 3: collect delivery address for replacement ─────────────────
-  if (PA==="freeze" && STEP===3) {
-    if (t.trim().length < 5) return {h:"<p>Please enter your full delivery address.</p>", it:"action"};
-    DATA.address = t.trim();
-    var email=DATA.email, addr=DATA.address;
-    PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
-    try {
-      var d = await callAction("card.replacement",{user_email:email, reason:"lost_stolen", delivery_address:addr});
-      if (d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
+    if(DATA.mode==="replacement" && !DATA.address && STEP===3) {
+      if(t.trim().length<8) return {h:"<p>Please enter your full delivery address for the replacement card.</p>",it:"action"};
+      DATA.address=t.trim();
+    }
+    return await _freezeExec();
+  }
+}
+
+async function _freezeExec() {
+  // Capture DATA before any clearing
+  var email   = DATA.email;
+  var mode    = DATA.mode;
+  var address = DATA.address;
+
+  try {
+    var cd = await callAction("card.get", {user_email: email});
+    if(!cd.found) {
+      PA=null; STEP=0; DATA={}; updAx();
+      return {h:"<p>&#10060; No card found for <strong>"+esc(email)+"</strong>. Please check your email address.</p>", it:"action"};
+    }
+    var cards  = cd.cards;
+    var active = cards.filter(function(c){return c.status==="Active";});
+    var frozen = cards.filter(function(c){return c.status==="Frozen";});
+
+    // ── Unfreeze ──────────────────────────────────────────────────────
+    if(mode==="unfreeze") {
+      if(!frozen.length) {
+        PA=null; STEP=0; DATA={}; updAx();
+        return {h:"<p>No frozen cards found for <strong>"+esc(email)+"</strong>."
+          +(active.length?" Your card ****"+active[0].last_four+" is already active.":"")+"</p>", it:"action"};
+      }
+      var card=frozen[0];
+      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
+      var d=await callAction("card.unfreeze", {user_email:email, last_four:card.last_four});
+      if(d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
+      return {h:"<p>&#10003; "+esc(d.message)+"</p>"
+        +"<p style='font-size:12px;color:var(--mu)'>Card ****"+esc(card.last_four)+" is now active.</p>", it:"action"};
+    }
+
+    // ── Freeze ────────────────────────────────────────────────────────
+    if(mode==="freeze") {
+      if(!active.length) {
+        PA=null; STEP=0; DATA={}; updAx();
+        return {h:"<p>No active cards to freeze for <strong>"+esc(email)+"</strong>."
+          +(frozen.length?" Card ****"+frozen[0].last_four+" is already frozen.":"")+"</p>", it:"action"};
+      }
+      var card=active[0];
+      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
+      var d=await callAction("card.freeze", {user_email:email, last_four:card.last_four});
+      if(d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
+      return {h:"<p>&#10003; "+esc(d.message)+"</p>"
+        +"<div class='ac'><div class='at'>Card Status</div>"
+        +"<div class='ar'><span class='al'>Card</span><span class='av2'>"+esc(card.card_type)+" ****"+esc(card.last_four)+"</span></div>"
+        +"<div class='as err'>&#9679; Frozen — all payments blocked</div></div>"
+        +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>To unfreeze, say <em>unfreeze my card</em>.</p>", it:"action"};
+    }
+
+    // ── Replacement ───────────────────────────────────────────────────
+    if(mode==="replacement") {
+      if(!address) {
+        STEP=3;
+        return {h:"<p>I'll cancel your current card and send a replacement.</p>"
+          +"<p>Card: <strong>"+esc(cards[0].card_type)+"</strong> ****"+esc(cards[0].last_four)+"</p>"
+          +"<p>Please provide your <strong>delivery address</strong> for the new card:</p>", it:"action"};
+      }
+      // All data captured — clear state BEFORE async call
+      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
+      var d=await callAction("card.replacement", {
+        user_email: email,
+        reason: "lost_stolen",
+        delivery_address: address,
+        last_four: cards[0].last_four
+      });
+      if(d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
       return {h:"<p>&#10003; Replacement card requested!</p>"
         +"<div class='ac'><div class='at'>Card Replacement</div>"
         +"<div class='ar'><span class='al'>Reference</span><span class='av2' style='color:var(--gd);font-weight:700'>"+esc(d.replacement_id)+"</span></div>"
         +"<div class='ar'><span class='al'>Old card</span><span class='av2'>****"+esc(d.old_last_four)+" — cancelled</span></div>"
         +"<div class='ar'><span class='al'>Delivery to</span><span class='av2'>"+esc(d.delivery_address)+"</span></div>"
         +"<div class='as ok'>&#9679; Replacement in progress</div></div>"
-        +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>"+esc(d.message)+"</p>",
-        it:"action"};
-    } catch(e) {
-      return {h:"<p>&#9888; Error: "+esc(e.message)+"</p>", it:"action"};
+        +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>"+esc(d.message)+"</p>", it:"action"};
     }
-  }
 
-  // Reset
-  PA=null; STEP=0; DATA={}; updAx();
-  return {h:"<p>Something went wrong. Please try again.</p>", it:"action"};
-}
-
-async function _freezeStep2(t) {
-  var email = DATA.email;
-  // Get card info first
-  try {
-    var cd = await callAction("card.get",{user_email:email});
-    if (!cd.found) {
-      PA=null; STEP=0; DATA={}; updAx();
-      return {h:"<p>&#10060; No card found for <strong>"+esc(email)+"</strong>. Please check the email address.</p>", it:"action"};
-    }
-    var cards = cd.cards;
-    var activeCards   = cards.filter(function(c){return c.status==="Active";});
-    var frozenCards   = cards.filter(function(c){return c.status==="Frozen";});
-
-    // Mode: unfreeze
-    if (DATA.mode==="unfreeze") {
-      if (!frozenCards.length) {
-        PA=null; STEP=0; DATA={}; updAx();
-        return {h:"<p>No frozen cards found for <strong>"+esc(email)+"</strong>. "
-          +(activeCards.length?"Your card ****"+activeCards[0].last_four+" is already active.":"")+"</p>", it:"action"};
-      }
-      var card = frozenCards[0];
+    // ── Order new card ────────────────────────────────────────────────
+    if(mode==="order") {
       PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
-      var d = await callAction("card.unfreeze",{user_email:email, last_four:card.last_four});
-      if (d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
-      return {h:"<p>&#10003; "+esc(d.message)+"</p>"
-        +"<p style='font-size:12px;color:var(--mu);margin-top:6px'>Card ****"+esc(card.last_four)+" is now active and ready to use.</p>",
-        it:"action"};
-    }
-
-    // Mode: freeze
-    if (DATA.mode==="freeze") {
-      if (!activeCards.length) {
-        PA=null; STEP=0; DATA={}; updAx();
-        return {h:"<p>No active cards to freeze for <strong>"+esc(email)+"</strong>."
-          +(frozenCards.length?" Card ****"+frozenCards[0].last_four+" is already frozen.":"")+"</p>", it:"action"};
-      }
-      var card = activeCards[0];
-      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
-      var d = await callAction("card.freeze",{user_email:email, last_four:card.last_four});
-      if (d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
-      return {h:"<p>&#10003; "+esc(d.message)+"</p>"
-        +"<div class='ac'><div class='at'>Card Status</div>"
-        +"<div class='ar'><span class='al'>Card</span><span class='av2'>"+esc(card.card_type)+" ****"+esc(card.last_four)+"</span></div>"
-        +"<div class='as err'>&#9679; Frozen — all payments blocked</div></div>"
-        +"<p style='font-size:12px;color:var(--mu);margin-top:8px'>To unfreeze, just say <em>unfreeze my card</em>.</p>"
-        +"<p style='font-size:11px;color:var(--mu)'>Guide: <a href='https://wise.com/help/articles/2977977' target='_blank'>How to freeze your Wise card</a></p>",
-        it:"action"};
-    }
-
-    // Mode: replacement (lost/stolen)
-    if (DATA.mode==="replacement") {
-      STEP=3;
-      return {h:"<p>I'll cancel your current card and send a replacement.</p>"
-        +"<p>Found: <strong>"+esc(cards[0].card_type)+"</strong> card ****"+esc(cards[0].last_four)+"</p>"
-        +"<p>Please provide your <strong>delivery address</strong> for the replacement card:</p>",
-        it:"action"};
-    }
-
-    // Mode: order new card
-    if (DATA.mode==="order") {
-      PA=null; STEP=0; DATA={}; updAx(); STATS.act++; updSt();
-      var d = await callAction("card.order",{user_email:email, card_type:"Physical", delivery_address:"on file"});
-      if (d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
+      var d=await callAction("card.order", {user_email:email, card_type:"Physical", delivery_address:"on file"});
+      if(d.error) return {h:"<p>&#10060; "+esc(d.error)+"</p>", it:"action"};
       return {h:"<p>&#10003; "+esc(d.message)+"</p>", it:"action"};
     }
 
@@ -1053,6 +1177,8 @@ async function _freezeStep2(t) {
     return {h:"<p>&#9888; Error: "+esc(e.message)+"</p>", it:"action"};
   }
 }
+
+
 
 // ── MAIN RESPONSE HANDLER ──
 async function getResp(q) {
