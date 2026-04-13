@@ -1265,18 +1265,6 @@
   ],
   "tickets": [
     {
-      "ticket_id": "TKT-AA1234",
-      "user_id": "U001",
-      "user_email": "alice@example.com",
-      "issue": "Transfer TW-001236 has been delayed 4 days with no update",
-      "priority": "High",
-      "status": "In Progress",
-      "created_at": "2026-04-08T05:31:11.561670Z",
-      "updated_at": "2026-04-09T05:31:11.561679Z",
-      "agent_notes": "Escalated to compliance team. ETA 24h.",
-      "related_transfer_id": "TW-001236"
-    },
-    {
       "ticket_id": "TKT-BB5678",
       "user_id": "U002",
       "user_email": "bob@example.com",
@@ -1562,7 +1550,7 @@
       "last_four": "8888",
       "status": "Frozen",
       "card_type": "Virtual",
-      "frozen_at": "2026-04-09T21:34:09.041417Z",
+      "frozen_at": null,
       "replacement_reason": null,
       "replacement_address": null,
       "replacement_requested_at": null,
@@ -1586,13 +1574,13 @@
       "user_id": "U003",
       "user_email": "carol@example.com",
       "last_four": "2222",
-      "status": "Frozen",
+      "status": "Replacement_Requested",
       "card_type": "Physical",
       "frozen_at": null,
-      "replacement_reason": null,
-      "replacement_address": null,
-      "replacement_requested_at": null,
-      "replacement_id": null
+      "replacement_reason": "lost_stolen",
+      "replacement_address": "123 Main St, London SW1A 1AA",
+      "replacement_requested_at": "2026-04-13T21:06:51.155612Z",
+      "replacement_id": "RPL-JWWXCR"
     },
     {
       "card_id": "CARD-004",
